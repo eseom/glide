@@ -1,4 +1,4 @@
 procwatcher
 ===========
 
-yet another simple process manager
+Procwatcher is simple process management tool for unix like system administrators
