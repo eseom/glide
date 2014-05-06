@@ -11,7 +11,7 @@ if sys.version_info[:2] < (2, 6):
     raise RuntimeError('On Python 2, Supervisor requires Python 2.6 or later')
 
 def readme():
-    with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as fp:
+    with open(os.path.join(os.path.dirname(__file__), 'README.md')) as fp:
         return fp.read()
 
 setup(name='procwatcher',
