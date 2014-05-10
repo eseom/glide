@@ -99,7 +99,20 @@ class Watcher(object):
             else:
                 getattr(self, command)(procname)
         except Exception as e:
-            pass
+            try:
+                rpi, wpi, proc = self.pids[pid]
+                print 'dict<%s %s %s>' % (rpi, wpi, proc,)
+                del self.rpis[rpi]
+                del self.pids[pid]
+                os.close(wpi)
+                os.close(rpi)
+                if proc.status == STATUS.STOPING:
+                    proc.status = STATUS.STOPPED
+                else:
+                    proc.status = STATUS.STOPPED
+                    self.start(proc.name, proc)
+            except Exception as e:
+                print '2', e
 
     def start(self, name, proc):
         if proc.status != STATUS.STOPPED:
@@ -158,26 +171,31 @@ class Watcher(object):
         os.execv(path[0], path)
 
     def proc_exit(self, signum, frame):
+        pids = []
         while True:
-            try:
-                pid, exit_code = os.waitpid(0, os.WNOHANG)
-                if pid == 0: # accidently return 0
-                    break
-            except Exception as e:
+            pid = 0
+            try:    pid, exitcode = os.waitpid(-1, os.WNOHANG | os.WUNTRACED)
+            except: pass
+            if pid == 0:
                 break
+            pids.append(pid)
+        for p in self.procs.values():
+            if p.pid not in pids:
+                if not p.process.is_alive():
+                    pids.append(p.pid)
+        for pid in pids:
             try:
                 rpi, wpi, proc = self.pids[pid]
-                os.close(wpi)
-                os.close(rpi)
                 del self.rpis[rpi]
                 del self.pids[pid]
+                os.close(wpi)
+                os.close(rpi)
                 if proc.status == STATUS.STOPING:
                     proc.status = STATUS.STOPPED
                 else:
                     proc.status = STATUS.STOPPED
                     self.start(proc.name, proc)
-            except Exception as e:
-                break
+            except: pass
 
 class Message(object):
     def __init__(self, procname, message):
@@ -241,12 +259,12 @@ class Daemon(object):
                         except: pass
                         server_rflist.remove(i)
                         clients.remove(i)
-                        pass
                 else:
                     try:
                         data = os.read(i, 1024).strip()
-                        self.message_callback(
-                            Message(watcher.rpis[i].name, data))
+                        for d in data.split('\n'):
+                            self.message_callback(
+                                Message(watcher.rpis[i].name, d))
                     except: pass
             if not self.running:
                 if not watcher.rpis:

@@ -26,6 +26,6 @@ class Command(object):
 if __name__ == '__main__':
     c = Command('localhost')
     c.command('stop', 'proc1')
-    c.command('stop', 'proc2')
-    time.sleep(10)
-    c.command('quit', 'procwatcher')
+    #c.command('stop', 'proc2')
+    #time.sleep(10)
+    #c.command('quit', 'procwatcher')
