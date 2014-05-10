@@ -44,6 +44,9 @@ class Proc(object):
         self.status = STATUS.STOPPED
         self.start_time = None
 
+    def join(self):
+        self.process.join()
+
     def __str__(self):
         uptime, pid = \
             0, None
@@ -59,7 +62,7 @@ class Proc(object):
             return tmpl % (self.name, self.status,)
 
     @classmethod
-    def get_procs(self, cfgfile):
+    def get_procs(cls, cfgfile):
         config = ConfigParser.RawConfigParser(allow_no_value=True)
         with open(cfgfile) as fp: config.readfp(io.BytesIO(fp.read()))
         procs  = {}
@@ -71,9 +74,9 @@ class Proc(object):
             if max_nl < l: max_nl = l
         for s in sections:
             try:
-                procs[s] = Proc(name=s,
-                                path=config.get(s, 'path').split(' '),
-                                max_nl=max_nl)
+                procs[s] = cls(name=s,
+                               path=config.get(s, 'path').split(' '),
+                               max_nl=max_nl)
             except ConfigParser.NoOptionError:
                 # TODO logging error in the config file
                 pass
@@ -188,8 +191,9 @@ class Daemon(object):
     def __init__(self, cfgfile, message_callback=None):
         self.cfgfile = cfgfile
         self.message_callback = message_callback
+        self.running = False
 
-    def start_loop(self):
+    def start(self):
         watcher = Watcher()
         try:
             ps = Proc.get_procs(self.cfgfile)
@@ -202,6 +206,7 @@ class Daemon(object):
         clients = []
         j = 0
         server_rflist  = [server]
+        self.running = True
         while True:
             rflist = watcher.get_rpis()
             rflist += server_rflist
@@ -218,8 +223,13 @@ class Daemon(object):
                 elif i in clients:
                     try:
                         command = i.recv(1024).strip()
+                        if command == 'quit procwatcher':
+                            self.running = False
+                            for p in ps.values():
+                                watcher.stop(p.name)
                         if command:
-                            watcher.command(command)
+                            if self.running:
+                                watcher.command(command)
                         else:
                             try:    i.close()
                             except: pass
@@ -238,10 +248,13 @@ class Daemon(object):
                         self.message_callback(
                             Message(watcher.rpis[i].name, data))
                     except: pass
-            if not watcher.rpis:
-                break
+            if not self.running:
+                if not watcher.rpis:
+                    break
+        for p in ps.values():
+            p.join()
 
 if __name__ == '__main__':
     def callback(message):
         print message
-    Daemon(CFGFILE, message_callback=callback).start_loop()
+    Daemon(CFGFILE, message_callback=callback).start()

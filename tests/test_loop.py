@@ -21,13 +21,13 @@ CFGFILE = 'test.conf'
 print Daemon
 
 class TestCase(unittest.TestCase):
-    def ttest_loop(self):
+    def test_loop(self):
         def callback(message):
             print message
         daemon = Daemon(CFGFILE, message_callback=callback)
-        daemon.start_loop()
+        daemon.start()
 
-    def test_start_one(self):
+    def ttest_start_one(self):
         watcher = Watcher()
         ps = Proc.get_procs(CFGFILE)
         data = []
@@ -51,7 +51,7 @@ class TestCase(unittest.TestCase):
                 break
         assert ['1-1', '1-2', '1-3', '1-4'] == data
 
-    def test_get_procs(self):
+    def ttest_get_procs(self):
         assert 2 == len(Proc.get_procs(CFGFILE))
 
     def setUp(self):
@@ -61,11 +61,11 @@ class TestCase(unittest.TestCase):
 [proc1]
 path = /bin/bash """ + d + """/testdaemon1.sh 20
 
+[proc2]
+path = /bin/sh """ + d + """/testdaemon2.sh 10
+
 [proc3]
 path = /bin/bash """ + d + """/testdaemon3.sh 30
-
-;[proc2]
-;path = /bin/sh """ + d + """/testdaemon2.sh 10
 """.strip(' ')
             fp.write(config)
 
