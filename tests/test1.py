@@ -17,7 +17,6 @@ class TestCase(unittest.TestCase):
         print '(I) procwatcher is running now.'
         returned_data = {}
         def callback(message):
-            print message
             if message.procname not in returned_data.keys():
                 returned_data[message.procname] = []
             returned_data[message.procname].append(message.message)
@@ -45,7 +44,6 @@ class TestCase(unittest.TestCase):
         client_thread.join()
 
         for k, v in returned_from_server.items():
-            print k, v
             assert ''.join(v[len(v) - 7:]) == '#' * 7
 
     def test_get_procs(self):
