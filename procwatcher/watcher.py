@@ -8,6 +8,7 @@ import datetime
 import select
 import socket
 import signal
+import fcntl
 import ConfigParser
 
 from multiprocessing import Process
@@ -17,9 +18,19 @@ from command import RESULT
 PORT = 32767
 CFGFILE = '/etc/procwatcher.conf'
 
+def set_nonblock(fd):
+    try:
+        fd = fd.fileno()
+    except AttributeError:
+        pass
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
+    flags = flags | os.O_NONBLOCK
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+
 def prepare_socket():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    set_nonblock(s)
     s.bind(('0.0.0.0', PORT))
     s.listen(1)
     return s
@@ -219,9 +230,12 @@ class Daemon(object):
             j += 1
             for i in io:
                 if i == server:
-                    client, address = server.accept()
-                    server_rflist.append(client)
-                    clients.append(client)
+                    try:
+                        client, address = server.accept()
+                        set_nonblock(client)
+                        server_rflist.append(client)
+                        clients.append(client)
+                    except: pass
                 elif i in clients:
                     try:
                         command = i.recv(1024).strip()
@@ -256,3 +270,15 @@ class Daemon(object):
                     break
         for p in ps.values():
             p.join()
+
+def main():
+    def callback(message):
+        print message
+        if message.procname not in returned_data.keys():
+            returned_data[message.procname] = []
+        #returned_data[message.procname].append(message.message)
+    daemon = Daemon(CFGFILE, message_callback=callback)
+    daemon.start()
+
+if __name__ == '__main__':
+    main()
