@@ -26,25 +26,53 @@ class TestCase(unittest.TestCase):
         # daemon stopped
         return returned_data
 
-    def run_client(self):
+    def run_client1(self):
         try:
-            time.sleep(3)
+            time.sleep(1)
             print '(I) a client that restart [output proc2] was executed.'
-            assert Command('localhost').command('restart', 'output proc2') == RESULT.SUCCESS
+            assert Command('localhost')._command('restart', 'output proc2') == RESULT.SUCCESS
             time.sleep(1)
             print '(I) a client that restart [output proc2] was executed again before 7 seconds since last restart.'
-            assert Command('localhost').command('restart', 'output proc2') == RESULT.FAIL
+            assert Command('localhost')._command('restart', 'output proc2') == RESULT.FAIL
             time.sleep(2)
             print '(I) a client that stops [output proc1] was executed.'
-            assert Command('localhost').command('stop', 'output proc1') == RESULT.SUCCESS
+            assert Command('localhost')._command('stop', 'output proc1') == RESULT.SUCCESS
             time.sleep(7)
             print '(I) a client that stops the running procwatcher was executed.'
-            assert Command('localhost').command('quit', 'procwatcher') == RESULT.SUCCESS
+            assert Command('localhost')._command('quit', 'procwatcher') == RESULT.SUCCESS
         except Exception as e:
             Command('localhost').command('quit', 'procwatcher')
 
-    def test_loop(self):
-        client_thread = threading.Thread(target=self.run_client)
+    def run_client2(self):
+        try:
+            time.sleep(1)
+            print Command.command(('status', '*',))
+            time.sleep(3)
+            print '(I) a client that restart [output proc2] was executed.'
+            assert Command.command(('restart', 'output proc2',))
+            time.sleep(1)
+            print '(I) a client that restart [output proc2] was executed again before 7 seconds since last restart.'
+            assert not Command.command(('restart', 'output proc2',))
+            time.sleep(2)
+            print '(I) a client that stops [output proc1] was executed.'
+            assert Command.command(('stop', 'output proc1',))
+            time.sleep(7)
+            print '(I) a client that stops the running procwatcher was executed.'
+            assert Command('localhost')._command('quit', 'procwatcher')
+        except Exception as e:
+            Command('localhost')._command('quit', 'procwatcher')
+
+    def test_loop1(self):
+        client_thread = threading.Thread(target=self.run_client1)
+        client_thread.start()
+        returned_from_server = self.run_server()
+        client_thread.join()
+
+        for k, v in returned_from_server.items():
+            assert ''.join(v[len(v) - 7:]) == '#' * 7
+
+    def test_loop2(self):
+        client_thread = threading.Thread(target=self.run_client2)
         client_thread.start()
         returned_from_server = self.run_server()
         client_thread.join()

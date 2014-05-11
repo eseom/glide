@@ -31,5 +31,11 @@ setup(name='procwatcher',
           'Topic :: System :: Boot',
           'Topic :: System :: Monitoring',
           'Topic :: System :: Systems Administration',
-      ]
+      ],
+      entry_points={
+          'console_scripts': [
+              'procwatcherd = procwatcher.watcher:main',
+              'pwctl = procwatcher.command:main',
+          ],
+      },
 )

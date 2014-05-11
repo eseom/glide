@@ -114,7 +114,16 @@ class Watcher(object):
             else:
                 return getattr(self, command)(procname)
         except Exception as e:
-            print e
+            return RESULT.FAIL
+
+    def status(self, name):
+        result = []
+        if name == '*':
+            for proc in self.procs.values():
+                result.append(str(proc))
+        else:
+            result.append(str(self.procs[name]))
+        return '\n'.join(result)
 
     def start(self, name, proc):
         if proc.status != STATUS.STOPPED:
