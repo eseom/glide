@@ -5,27 +5,27 @@
 import socket
 import time
 
+class RESULT(object):
+    SUCCESS = '1'
+    FAIL    = '0'
+
 class Command(object):
     def __init__(self, host):
         self.host = host
 
     def command(self, command, procname):
         try:
-            self.socket = socket.create_connection((self.host, 32767))
-        except:
+            sock = socket.create_connection((self.host, 32767))
+        except Exception as e:
+            print e
+        try:
+            sock.send('%s %s' % (command, procname,))
+            message = sock.recv(1024)
+        except Exception as e:
+            print e
             pass
         try:
-            self.socket.send('%s %s' % (command, procname,))
+            sock.close()
+            return message
         except:
             pass
-        try:
-            self.socket.close()
-        except:
-            pass
-
-if __name__ == '__main__':
-    c = Command('localhost')
-    c.command('stop', 'proc1')
-    #c.command('stop', 'proc2')
-    #time.sleep(10)
-    #c.command('quit', 'procwatcher')

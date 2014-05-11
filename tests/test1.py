@@ -6,7 +6,7 @@ import time
 import threading
 
 from procwatcher.watcher import Proc, Daemon
-from procwatcher.command import Command
+from procwatcher.command import Command, RESULT
 
 CFGFILE = 'test.conf'
 
@@ -27,15 +27,21 @@ class TestCase(unittest.TestCase):
         return returned_data
 
     def run_client(self):
-        time.sleep(3)
-        print '(I) a client was executed that restart [output proc2].'
-        Command('localhost').command('restart', 'output proc2')
-        time.sleep(3)
-        print '(I) a client was executed that stops [output proc1].'
-        Command('localhost').command('stop', 'output proc1')
-        time.sleep(7)
-        print '(I) a client was executed that stops the running procwatcher.'
-        Command('localhost').command('quit', 'procwatcher')
+        try:
+            time.sleep(3)
+            print '(I) a client that restart [output proc2] was executed.'
+            assert Command('localhost').command('restart', 'output proc2') == RESULT.SUCCESS
+            time.sleep(1)
+            print '(I) a client that restart [output proc2] was executed again before 7 seconds since last restart.'
+            assert Command('localhost').command('restart', 'output proc2') == RESULT.FAIL
+            time.sleep(2)
+            print '(I) a client that stops [output proc1] was executed.'
+            assert Command('localhost').command('stop', 'output proc1') == RESULT.SUCCESS
+            time.sleep(7)
+            print '(I) a client that stops the running procwatcher was executed.'
+            assert Command('localhost').command('quit', 'procwatcher') == RESULT.SUCCESS
+        except Exception as e:
+            Command('localhost').command('quit', 'procwatcher')
 
     def test_loop(self):
         client_thread = threading.Thread(target=self.run_client)

@@ -2,21 +2,17 @@
 #
 # author: EunseokEom <me@eseom.org>
 
-import sys
 import io
-import unittest
 import os
 import datetime
 import select
-import logging
 import socket
 import signal
-import math
-import time
-import traceback
 import ConfigParser
 
 from multiprocessing import Process
+
+from command import RESULT
 
 PORT = 32767
 CFGFILE = '/etc/procwatcher.conf'
@@ -34,6 +30,14 @@ class STATUS(object):
     STOPING = 'STOPPING'
     HANGING = 'HANGINGUP'
     STOPPED = 'STOPPED'
+
+class Message(object):
+    def __init__(self, procname, message):
+        self.procname = procname
+        self.message = message
+
+    def __str__(self):
+        return '%s: %s' % (self.procname, self.message,)
 
 class Proc(object):
     def __init__(self, name, path, max_nl):
@@ -95,28 +99,15 @@ class Watcher(object):
             command, procname = command.strip().split(' ', 1)
             if command == 'start':
                 proc = self.procs[procname]
-                getattr(self, command)(procname, proc)
+                return getattr(self, command)(procname, proc)
             else:
-                getattr(self, command)(procname)
+                return getattr(self, command)(procname)
         except Exception as e:
-            try:
-                rpi, wpi, proc = self.pids[pid]
-                print 'dict<%s %s %s>' % (rpi, wpi, proc,)
-                del self.rpis[rpi]
-                del self.pids[pid]
-                os.close(wpi)
-                os.close(rpi)
-                if proc.status == STATUS.STOPING:
-                    proc.status = STATUS.STOPPED
-                else:
-                    proc.status = STATUS.STOPPED
-                    self.start(proc.name, proc)
-            except Exception as e:
-                print '2', e
+            print e
 
     def start(self, name, proc):
         if proc.status != STATUS.STOPPED:
-            return False
+            return RESULT.FAIL
         rpi, wpi = os.pipe()
         signal.signal(signal.SIGCHLD, self.proc_exit);
         process = Process(
@@ -131,37 +122,38 @@ class Watcher(object):
         self.pids[process.pid] = (rpi, wpi, proc,)
         self.procs[name] = proc
         self.rpis[rpi] = proc
+        return RESULT.SUCCESS
 
     def stop(self, name):
         proc = self.procs[name]
         if proc.status != STATUS.RUNNING:
-            return False
+            return RESULT.FAIL
         os.kill(proc.pid, 15)
         proc.status = STATUS.STOPING
-        return True
+        return RESULT.SUCCESS
 
     def hangup(self, name):
         proc = self.procs[name]
         if proc.status != STATUS.RUNNING:
-            return False
+            return RESULT.FAIL
         os.kill(proc.pid, 1)
         proc.status = STATUS.HANGING
-        return True
+        return RESULT.SUCCESS
 
     def alarm(self, name):
         proc = self.procs[name]
         if proc.status != STATUS.RUNNING:
-            return False
+            return RESULT.FAIL
         os.kill(proc.pid, 14)
-        return True
+        return RESULT.SUCCESS
 
     def restart(self, name):
         proc = self.procs[name]
         if proc.status != STATUS.RUNNING:
-            return False
+            return RESULT.FAIL
         os.kill(proc.pid, 15)
         proc.status = STATUS.RSTTING
-        return True
+        return RESULT.SUCCESS
 
     def __execute(self, path, rpi, wpi):
         os.dup2(wpi, 1)
@@ -196,14 +188,6 @@ class Watcher(object):
                     proc.status = STATUS.STOPPED
                     self.start(proc.name, proc)
             except: pass
-
-class Message(object):
-    def __init__(self, procname, message):
-        self.procname = procname
-        self.message = message
-
-    def __str__(self):
-        return '%s: %s' % (self.procname, self.message,)
 
 class Daemon(object):
     def __init__(self, cfgfile, message_callback=None):
@@ -241,13 +225,14 @@ class Daemon(object):
                 elif i in clients:
                     try:
                         command = i.recv(1024).strip()
-                        if command == 'quit procwatcher':
-                            self.running = False
-                            for p in ps.values():
-                                watcher.stop(p.name)
                         if command:
+                            if command == 'quit procwatcher':
+                                self.running = False
+                                for p in ps.values():
+                                    watcher.stop(p.name)
+                                i.send(RESULT.SUCCESS)
                             if self.running:
-                                watcher.command(command)
+                                i.send(watcher.command(command))
                         else:
                             try:    i.close()
                             except: pass
@@ -271,8 +256,3 @@ class Daemon(object):
                     break
         for p in ps.values():
             p.join()
-
-if __name__ == '__main__':
-    def callback(message):
-        print message
-    Daemon(CFGFILE, message_callback=callback).start()
