@@ -96,7 +96,7 @@ then
     echo 'usage: bash outputd.sh <identifier number> <loop count> <sleep>'
     exit 1
 fi
-trap 'for i in $(seq 1 3); do echo -n "#"; sleep 1; done; exit' SIGTERM SIGHUP
+trap 'for i in $(seq 1 3); do echo "$1-#"; sleep 0.2; done; exit' SIGTERM SIGHUP
 for i in `seq 1 $2`; do
     echo "$1-$i"
     sleep $3
@@ -146,18 +146,16 @@ path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
 
     def controller(self):
         pass
-        time.sleep(1)
-        self.watcher.stop('output proc0')
-        time.sleep(2)
+        for i in range(20):
+            time.sleep(1.5)
+            if i % 2 == 0:
+                self.watcher.stop('output proc1')
+            else:
+                self.watcher.start('output proc1')
         self.watcher.stop('output proc1')
-        time.sleep(4)
-        self.watcher.start('output proc0')
-        time.sleep(1)
-        self.watcher.stop('output proc2')
-        time.sleep(5)
-        self.watcher.stop('output proc0')
         #for x in async.socket_map.values():
         #    x.stop()
 
     def blast_module(self, message, index):
+        #print message
         self.data.append(message.message)

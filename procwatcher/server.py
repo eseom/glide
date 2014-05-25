@@ -15,7 +15,8 @@ import time
 PORT = 32767
 
 class CommandBaseHandler(async.dispatcher_with_send):
-    def __init__(self, sock):
+    def __init__(self, controller, sock):
+        self.controller = controller
         async.dispatcher_with_send.__init__(self, sock)
 
     def handle_read(self):
@@ -23,12 +24,13 @@ class CommandBaseHandler(async.dispatcher_with_send):
         if data:
             self.send(self.handle_data(data))
 
-    def handle_data(self):
+    def handle_data(self, data):
         raise Exception('<handle_data> not implemented')
 
 class CommandServer(async.dispatcher):
-    def __init__(self, host, port, command_handler):
+    def __init__(self, host, port, controller, command_handler):
         async.dispatcher.__init__(self)
+        self.controller = controller
         self.command_handler = command_handler
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.set_reuse_addr()
@@ -39,7 +41,7 @@ class CommandServer(async.dispatcher):
         pair = self.accept()
         if pair is not None:
             sock, addr = pair
-            handler = self.command_handler(sock)
+            handler = self.command_handler(self.controller, sock)
 
 class Tester(unittest.TestCase):
     def setUp(self):
@@ -56,7 +58,7 @@ class Tester(unittest.TestCase):
         client_thread.join()
 
     def run_client(self, command):
-        time.sleep(1)
+        time.sleep(2) # TODO need a blocking queue
         s = socket.create_connection(('localhost', PORT))
         s.send(command)
         data = s.recv(1024)
@@ -65,9 +67,19 @@ class Tester(unittest.TestCase):
         assert data == command
 
     def run_server(self):
-        server = CommandServer('0.0.0.0', PORT, Tester.EchoCommandHandler)
+        server = CommandServer(
+            '0.0.0.0',
+            PORT,
+            Tester.Controller(),
+            Tester.EchoCommandHandler,
+        )
         async.loop()
+
+    class Controller(object):
+        def command(self, command):
+            return command
 
     class EchoCommandHandler(CommandBaseHandler):
         def handle_data(self, data):
+            assert self.controller.command(data) == data
             return data

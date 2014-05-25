@@ -34,24 +34,7 @@ class Message(object):
     def __str__(self):
         return '%s: %s' % (str(self.proc), self.message,)
 
-class FileDispatcher(async.file_dispatcher):
-    def __init__(self):
-        async.dispatcher.__init__(self)
-
-    def add_channel(self, fd):
-        flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
-        flags = flags | os.O_NONBLOCK
-        fcntl.fcntl(fd, fcntl.F_SETFL, flags)
-        try:
-            # close already opened connection, lazy close
-            self.socket.close()
-        except:
-            pass
-        self.socket = async.file_wrapper(fd)
-        self._fileno = self.socket.fileno()
-        async.file_dispatcher.add_channel(self)
-
-class Process(FileDispatcher):
+class Process(async.file_dispatcher):
     """
     invoke one process
     """
@@ -59,14 +42,13 @@ class Process(FileDispatcher):
         self.status      = STATUS.READY
         self.start_time  = None
         self.try_restart = try_restart
-        self.parent      = FileDispatcher
+        self.parent      = async.file_dispatcher
         self.restarted   = 0
         self.bi          = 0
         self.name        = name
         self.path        = path
         self.max_nl      = max_nl
         self.bm          = bm
-        self.parent.__init__(self)
 
     def start(self):
         if self.status not in (STATUS.STOPPED, STATUS.READY):
@@ -79,7 +61,8 @@ class Process(FileDispatcher):
         )
         self.proc.start()
         self.pid = self.proc.pid
-        self.add_channel(self.rpi)
+        self.parent.__init__(self, self.rpi)
+        #self.add_channel(self.rpi)
         self.status = STATUS.RUNNING
         self.start_time = datetime.datetime.now()
 
@@ -102,15 +85,16 @@ class Process(FileDispatcher):
         if self.status != STATUS.RUNNING:
             print 'not running'
             return False
-        self.proc.terminate()
         self.status = STATUS.STOPING
+        self.proc.terminate()
 
     def cleanup(self):
         if self.status == STATUS.RUNNING:
             self.status = STATUS.RSTTING
         os.close(self.rpi)
         os.close(self.wpi)
-        self.del_channel()
+        self.parent.close(self)
+        #self.del_channel()
         if (self.try_restart == -1 or \
             self.try_restart > self.restarted) and \
             self.status == STATUS.RSTTING:
@@ -119,7 +103,7 @@ class Process(FileDispatcher):
             self.start()
             return self
         else:
-            self.close()
+            #self.close()
             self.status = STATUS.STOPPED
             return None
 
@@ -159,6 +143,7 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
         os.chmod(self.test_file, 0777)
 
         self.pid_map = {}
+        self.nam_map = {}
         signal.signal(signal.SIGCHLD, self.proc_exit)
 
     def tearDown(self):
@@ -198,23 +183,22 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
     def blast(self, message, index):
         procnum, data =  message.message.split('-')
         self.data[procnum].append(data)
-        #print '------', message.proc.restarted,
-        #print data,
-        #print index
-        if index == 43:
-            for p in self.pid_map.values():
-                p.stop()
+        if index == 23 and message.message[0] == '1':
+            self.nam_map['test_daemon1'].stop()
+        if index == 30 and message.message[0] == '1':
+            self.nam_map['test_daemon1'].start()
+        if index == 44 and message.message[0] == '2':
+            self.nam_map['test_daemon2'].stop()
 
     def test_stop_proc_handler(self):
         for sleep in ['0.05', '0.08']:
-        #for sleep in ['0.15']:
             self.data = {
                 '1': [],
                 '2': [],
             }
             for i in self.data.keys():
                 proc = Process(
-                    name='test_daemon',
+                    name='test_daemon' + i,
                     path=[self.test_file, i, sleep],
                     max_nl=11,
                     bm=self.blast,
@@ -222,9 +206,11 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
                 )
                 proc.start()
                 self.pid_map[proc.pid] = proc
+                self.nam_map[proc.name] = proc
             try:
                 async.loop()
-            except:
+            except Exception as e:
+                print e
                 self.tearDown()
             for i in self.data.keys():
                 pos = len(self.data[i]) - self.terminate_sign_num
