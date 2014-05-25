@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 #
-# author: EunseokEom <me@eseom.org>
+# http://github.com/eseom/procwatcher
+#
+# @author:  EunseokEom <me@eseom.org>
+# @desc:    process wrapper with the python asyncore module
 
 import unittest
 import threading
@@ -16,7 +19,6 @@ from command import RESULT
 from process import Process, STATUS
 from config import Config
 
-PORT = 32767
 CFGFILE = '/etc/procwatcher.conf'
 
 class Watcher(object):
@@ -54,9 +56,6 @@ class Watcher(object):
     def stop(self, procname):
         proc = self.nam_map[procname]
         proc.stop()
-
-    def start_loop(self):
-        async.loop()
 
     def proc_exit(self, signum, frame):
         pids = []
@@ -141,7 +140,7 @@ path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
         controller_thread.start()
         self.watcher = self.get_watcher()
         self.watcher.start_all()
-        self.watcher.start_loop()
+        async.loop()
         controller_thread.join()
         print self.data
 
@@ -162,6 +161,3 @@ path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
 
     def blast_module(self, message, index):
         self.data.append(message.message)
-        return
-        print message.proc.restarted
-        print "watcher's %s :: blasted %s" % (message.proc.name, message.message,)
