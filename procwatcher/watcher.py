@@ -1,293 +1,161 @@
 #!/usr/bin/env python
 #
-# author: EunseokEom <me@eseom.org>
+# http://github.com/eseom/procwatcher
+#
+# @author:  EunseokEom <me@eseom.org>
+# @desc:    process wrapper with the python asyncore module
 
-import io
+import unittest
+import threading
 import os
+import time
 import datetime
-import select
-import socket
 import signal
-import fcntl
-import ConfigParser
+import asyncore as async
 
 from multiprocessing import Process
 
 from command import RESULT
+from process import Process, STATUS
+from config import Config
 
-PORT = 32767
 CFGFILE = '/etc/procwatcher.conf'
 
-def set_nonblock(fd):
-    try:
-        fd = fd.fileno()
-    except AttributeError:
-        pass
-    flags = fcntl.fcntl(fd, fcntl.F_GETFL, 0)
-    flags = flags | os.O_NONBLOCK
-    fcntl.fcntl(fd, fcntl.F_SETFL, flags)
-
-def prepare_socket():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    set_nonblock(s)
-    s.bind(('0.0.0.0', PORT))
-    s.listen(1)
-    return s
-
-class STATUS(object):
-    RUNNING = 'RUNNING'
-    RSTTING = 'RESTARTING'
-    STOPING = 'STOPPING'
-    HANGING = 'HANGINGUP'
-    STOPPED = 'STOPPED'
-
-class Message(object):
-    def __init__(self, procname, message):
-        self.procname = procname
-        self.message = message
-
-    def __str__(self):
-        return '%s: %s' % (self.procname, self.message,)
-
-class Proc(object):
-    def __init__(self, name, path, max_nl):
-        self.name   = name
-        self.path   = path
-        self.max_nl = max_nl
-
-        self.status = STATUS.STOPPED
-        self.start_time = None
-
-    def join(self):
-        self.process.join()
-
-    def __str__(self):
-        uptime, pid = \
-            0, None
-        if self.status != STATUS.STOPPED:
-            _uptime = (datetime.datetime.now() - self.start_time)
-            uptime  = int(_uptime.total_seconds())
-            pid = self.pid
-            tmpl = '%-' + str(self.max_nl) + \
-                's %10s  pid %5s, uptime %s sec'
-            return tmpl % (self.name, self.status, pid, uptime,)
-        else:
-            tmpl = '%-' + str(self.max_nl) + 's %10s'
-            return tmpl % (self.name, self.status,)
-
-    @classmethod
-    def get_procs(cls, cfgfile):
-        config = ConfigParser.RawConfigParser(allow_no_value=True)
-        with open(cfgfile) as fp: config.readfp(io.BytesIO(fp.read()))
-        procs  = {}
-        max_nl = 0
-        sections = config.sections()
-        sections.sort()
-        for s in sections:
-            l = len(s)
-            if max_nl < l: max_nl = l
-        for s in sections:
-            try:
-                procs[s] = cls(name=s,
-                               path=config.get(s, 'path').split(' '),
-                               max_nl=max_nl)
-            except ConfigParser.NoOptionError:
-                # TODO logging error in the config file
-                pass
-        return procs
-
 class Watcher(object):
-    pids  = {}
-    rpis  = {}
-    procs = {}
+    def __init__(self, bm):
+        self.bm =      bm
+        self.nam_map = {} # key: proc name, value: proc
+        self.pid_map = {} # key: proc pid,  value: proc
+        signal.signal(signal.SIGCHLD, self.proc_exit)
 
-    def get_rpis(self):
-        return self.rpis.keys() # deep copy
+    def match_procs(self, cfg_file=None):
+        if not cfg_file:
+            cfg_file = CFGFILE
+        config = Config(cfg_file)
+        c = []
+        for p in config.procs:
+            proc = Process(
+                name=p.name,
+                path=p.path,
+                max_nl=p.max_nl,
+                bm=self.bm,
+                try_restart=-1,
+            )
+            self.nam_map[proc.name] = proc
 
-    def command(self, command):
-        try:
-            command, procname = command.strip().split(' ', 1)
-            if command == 'start':
-                proc = self.procs[procname]
-                return getattr(self, command)(procname, proc)
-            else:
-                return getattr(self, command)(procname)
-        except Exception as e:
-            return RESULT.FAIL
+    def start_all(self):
+        for proc in self.nam_map.values():
+            proc.start()
+            self.pid_map[proc.pid] = proc
 
-    def status(self, name):
-        result = []
-        if name == '*':
-            for proc in self.procs.values():
-                result.append(str(proc))
-        else:
-            result.append(str(self.procs[name]))
-        return '\n'.join(result)
+    def start(self, procname):
+        proc = self.nam_map[procname]
+        proc.start()
+        self.pid_map[proc.pid] = proc
 
-    def start(self, name, proc):
-        if proc.status != STATUS.STOPPED:
-            return RESULT.FAIL
-        rpi, wpi = os.pipe()
-        signal.signal(signal.SIGCHLD, self.proc_exit);
-        process = Process(
-            target=self.__execute,
-            args=(proc.path, rpi, wpi),
-        )
-        process.start()
-        proc.process = process
-        proc.pid = process.pid
-        proc.status = STATUS.RUNNING
-        proc.start_time = datetime.datetime.now()
-        self.pids[process.pid] = (rpi, wpi, proc,)
-        self.procs[name] = proc
-        self.rpis[rpi] = proc
-        return RESULT.SUCCESS
-
-    def stop(self, name):
-        proc = self.procs[name]
-        if proc.status != STATUS.RUNNING:
-            return RESULT.FAIL
-        os.kill(proc.pid, 15)
-        proc.status = STATUS.STOPING
-        return RESULT.SUCCESS
-
-    def hangup(self, name):
-        proc = self.procs[name]
-        if proc.status != STATUS.RUNNING:
-            return RESULT.FAIL
-        os.kill(proc.pid, 1)
-        proc.status = STATUS.HANGING
-        return RESULT.SUCCESS
-
-    def alarm(self, name):
-        proc = self.procs[name]
-        if proc.status != STATUS.RUNNING:
-            return RESULT.FAIL
-        os.kill(proc.pid, 14)
-        return RESULT.SUCCESS
-
-    def restart(self, name):
-        proc = self.procs[name]
-        if proc.status != STATUS.RUNNING:
-            return RESULT.FAIL
-        os.kill(proc.pid, 15)
-        proc.status = STATUS.RSTTING
-        return RESULT.SUCCESS
-
-    def __execute(self, path, rpi, wpi):
-        os.dup2(wpi, 1)
-        os.dup2(wpi, 2)
-        os.close(wpi)
-        os.close(rpi)
-        os.execv(path[0], path)
+    def stop(self, procname):
+        proc = self.nam_map[procname]
+        proc.stop()
 
     def proc_exit(self, signum, frame):
         pids = []
         while True:
             pid = 0
-            try:    pid, exitcode = os.waitpid(-1, os.WNOHANG | os.WUNTRACED)
-            except: pass
+            try:
+                pid, exitcode = os.waitpid(-1, os.WNOHANG | os.WUNTRACED)
+            except Exception as e:
+                #print 'error:::', e
+                pass
             if pid == 0:
                 break
-            pids.append(pid)
-        for p in self.procs.values():
-            if p.pid not in pids:
-                if not p.process.is_alive():
-                    pids.append(p.pid)
+            else:
+                pids.append(pid)
+        #for p in self.pid_map.values():
+        #    if p.pid not in pids:
+        #        print p.proc.is_alive()
+        #        if not p.proc.is_alive():
+        #            pids.append(p.pid)
         for pid in pids:
-            try:
-                rpi, wpi, proc = self.pids[pid]
-                del self.rpis[rpi]
-                del self.pids[pid]
-                os.close(wpi)
-                os.close(rpi)
-                if proc.status == STATUS.STOPING:
-                    proc.status = STATUS.STOPPED
-                else:
-                    proc.status = STATUS.STOPPED
-                    self.start(proc.name, proc)
-            except: pass
+            proc = self.pid_map[pid].cleanup()
+            del self.pid_map[pid]
+            if proc:
+                self.pid_map[proc.pid] = proc
 
-class Daemon(object):
-    def __init__(self, cfgfile, message_callback=None):
-        self.cfgfile = cfgfile
-        self.message_callback = message_callback
-        self.running = False
+###
+### testing
+###
 
-    def start(self):
-        watcher = Watcher()
+class Tester(unittest.TestCase):
+    def setUp(self):
+        self.data = []
+        self.daemon_file = 'output.sh' + str(time.time())
+        daemon_code = """
+#!/bin/bash
+if test "$#" -ne 3
+then
+    echo 'usage: bash outputd.sh <identifier number> <loop count> <sleep>'
+    exit 1
+fi
+trap 'for i in $(seq 1 3); do echo "$1-#"; sleep 0.2; done; exit' SIGTERM SIGHUP
+for i in `seq 1 $2`; do
+    echo "$1-$i"
+    sleep $3
+done
+"""
+        with open(self.daemon_file, 'w') as fp:
+            fp.write(daemon_code)
+
+        self.cfg_file = 'test.conf' + str(time.time())
+        c = []
+        c.append("""[output proc0]
+path = /bin/bash """ + self.daemon_file + """ 0 6 0.07""")
+        c.append("""[output proc1]
+path = /bin/bash """ + self.daemon_file + """ 1 13 0.2""")
+        c.append("""[output proc2]
+path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
+        with open(self.cfg_file, 'w') as fp:
+            fp.write('\n'.join(c))
+
+    def tearDown(self):
         try:
-            ps = Proc.get_procs(self.cfgfile)
-        except IOError as e:
-            print e
-            return
-        for k in ps.keys():
-            watcher.start(k, ps[k])
-        server  = prepare_socket()
-        clients = []
-        j = 0
-        server_rflist  = [server]
-        self.running = True
-        while True:
-            rflist = watcher.get_rpis()
-            rflist += server_rflist
-            try:
-                io, oo, eo = select.select(rflist, [], [], 0.5)
-            except select.error as e:
-                pass
-            j += 1
-            for i in io:
-                if i == server:
-                    try:
-                        client, address = server.accept()
-                        set_nonblock(client)
-                        server_rflist.append(client)
-                        clients.append(client)
-                    except: pass
-                elif i in clients:
-                    try:
-                        command = i.recv(1024).strip()
-                        if command:
-                            if command == 'quit procwatcher':
-                                self.running = False
-                                for p in ps.values():
-                                    watcher.stop(p.name)
-                                i.send(RESULT.SUCCESS)
-                            if self.running:
-                                i.send(watcher.command(command))
-                        else:
-                            try:    i.close()
-                            except: pass
-                            server_rflist.remove(i)
-                            clients.remove(i)
-                    except Exception as e: # TODO inspect exception
-                        # socket.error
-                        try:    i.close()
-                        except: pass
-                        server_rflist.remove(i)
-                        clients.remove(i)
-                else:
-                    try:
-                        data = os.read(i, 1024).strip()
-                        for d in data.split('\n'):
-                            self.message_callback(
-                                Message(watcher.rpis[i].name, d))
-                    except: pass
-            if not self.running:
-                if not watcher.rpis:
-                    break
-        for p in ps.values():
-            p.join()
+            os.remove(self.daemon_file)
+            os.remove(self.cfg_file)
+        except:
+            pass
 
-def main():
-    def callback(message):
-        print message
-        if message.procname not in returned_data.keys():
-            returned_data[message.procname] = []
-        #returned_data[message.procname].append(message.message)
-    daemon = Daemon(CFGFILE, message_callback=callback)
-    daemon.start()
+    def get_watcher(self):
+        watcher = Watcher(self.blast_module)
+        watcher.match_procs(self.cfg_file)
+        return watcher
 
-if __name__ == '__main__':
-    main()
+    def test_match_procs(self):
+        watcher = self.get_watcher()
+        assert len(watcher.nam_map.values()) == 3
+        for k, v in watcher.nam_map.items():
+            assert k.startswith('output proc')
+            assert 'READY' in str(v)
+
+    def test_start_procs(self):
+        controller_thread = threading.Thread(target=self.controller)
+        controller_thread.start()
+        self.watcher = self.get_watcher()
+        self.watcher.start_all()
+        async.loop()
+        controller_thread.join()
+        print self.data
+
+    def controller(self):
+        pass
+        for i in range(20):
+            time.sleep(1.5)
+            if i % 2 == 0:
+                self.watcher.stop('output proc1')
+            else:
+                self.watcher.start('output proc1')
+        self.watcher.stop('output proc1')
+        #for x in async.socket_map.values():
+        #    x.stop()
+
+    def blast_module(self, message, index):
+        #print message
+        self.data.append(message.message)
