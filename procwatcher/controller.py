@@ -8,6 +8,7 @@
 import asyncore as async
 
 from watcher import Watcher
+import logger
 import server
 
 class CommandHandler(server.CommandBaseHandler):
@@ -17,10 +18,10 @@ class CommandHandler(server.CommandBaseHandler):
 
 class Controller(object):
     def __init__(self):
-        pass
+        self.logger = logger.Log()
 
     def start(self):
-        self.watcher = Watcher(self.__blast_module)
+        self.watcher = Watcher(self.logger.info)
         self.watcher.match_procs()
         self.watcher.start_all()
 

@@ -34,7 +34,7 @@ setup(name='procwatcher',
       ],
       entry_points={
           'console_scripts': [
-              'procwatcherd = procwatcher.watcher:main',
+              'procwatcherd = procwatcher.controller:main',
               'pwctl = procwatcher.command:main',
           ],
       },

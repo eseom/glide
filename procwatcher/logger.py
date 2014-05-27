@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 #
-# author: EunseokEom <me@eseom.org>
+# http://github.com/eseom/procwatcher
+#
+# @author:  EunseokEom <me@eseom.org>
+# @desc:    controller
 
 import logging
 import logging.handlers
@@ -20,7 +23,8 @@ class Log(object):
         except Exception as e:
             pass
 
-    def log(self, procname, message):
+    def info(self, message, index):
         if not self.logger:
             self.get_logger()
-        self.logger.info('%s: %s', procname, message)
+        self.logger.info('%s: %s',
+            message.proc.name, message.message)
