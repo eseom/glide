@@ -55,14 +55,26 @@ class Watcher(object):
         proc = self.nam_map[procname]
         proc.start()
         self.pid_map[proc.pid] = proc
+        return RESULT.SUCCESS
 
     def stop(self, procname):
         proc = self.nam_map[procname]
         proc.stop()
+        return RESULT.SUCCESS
 
     def restart(self, procname):
         proc = self.nam_map[procname]
         proc.restart()
+        return RESULT.SUCCESS
+
+    def status(self, procname):
+        if procname == '*':
+            pa = []
+            for p in self.nam_map.values():
+                pa.append(str(p))
+            return '\n'.join(pa)
+        proc = self.nam_map[procname]
+        return str(proc)
 
     def proc_exit(self, signum, frame):
         pids = []

@@ -13,8 +13,7 @@ import server
 
 class CommandHandler(server.CommandBaseHandler):
     def handle_data(self, data):
-        self.controller.command(data)
-        return data # send to the client
+        return self.controller.command(data)
 
 class Controller(object):
     def __init__(self):
@@ -36,7 +35,7 @@ class Controller(object):
             command, procname = command.strip().split(' ', 1)
             method = getattr(self.watcher, command)
             if method:
-                method(procname)
+                return method(procname)
         except:
             pass
 
