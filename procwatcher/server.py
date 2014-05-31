@@ -37,6 +37,9 @@ class CommandServer(async.dispatcher):
         self.bind((host, port))
         self.listen(5)
 
+    def stop(self):
+        self.close()
+
     def handle_accept(self):
         pair = self.accept()
         if pair is not None:

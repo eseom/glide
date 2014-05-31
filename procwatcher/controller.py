@@ -10,6 +10,7 @@ import asyncore as async
 from watcher import Watcher
 import logger
 import server
+from BreakHandler import BreakHandler
 
 class CommandHandler(server.CommandBaseHandler):
     def handle_data(self, data):
@@ -24,8 +25,13 @@ class Controller(object):
         self.watcher.match_procs()
         self.watcher.start_all()
 
-        server.CommandServer('0.0.0.0', 32767, self, CommandHandler)
+        self.server = \
+            server.CommandServer('0.0.0.0', 32767, self, CommandHandler)
         async.loop()
+
+    def stop(self):
+        self.server.stop()
+        self.watcher.stop_all()
 
     def __blast_module(self, message, index):
         print index, message.message,
@@ -41,6 +47,10 @@ class Controller(object):
 
 def main():
     controller = Controller()
+    def exit_callback(signal, frame):
+        controller.stop()
+    bh = BreakHandler()
+    bh.register_exit_callback(exit_callback, onlyonce=True)
     controller.start()
 
 if __name__ == '__main__':
