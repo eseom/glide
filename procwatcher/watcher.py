@@ -43,6 +43,9 @@ class Watcher(object):
             )
             self.nam_map[proc.name] = proc
 
+    def get_procs(self):
+        return self.nam_map.values()
+
     def start_all(self):
         for proc in self.nam_map.values():
             proc.start()
@@ -57,6 +60,10 @@ class Watcher(object):
         proc = self.nam_map[procname]
         proc.stop()
 
+    def restart(self, procname):
+        proc = self.nam_map[procname]
+        proc.restart()
+
     def proc_exit(self, signum, frame):
         pids = []
         while True:
@@ -70,11 +77,6 @@ class Watcher(object):
                 break
             else:
                 pids.append(pid)
-        #for p in self.pid_map.values():
-        #    if p.pid not in pids:
-        #        print p.proc.is_alive()
-        #        if not p.proc.is_alive():
-        #            pids.append(p.pid)
         for pid in pids:
             proc = self.pid_map[pid].cleanup()
             del self.pid_map[pid]
@@ -88,7 +90,7 @@ class Watcher(object):
 class Tester(unittest.TestCase):
     def setUp(self):
         self.data = []
-        self.daemon_file = 'output.sh' + str(time.time())
+        self.daemon_file = 'output.sh'
         daemon_code = """
 #!/bin/bash
 if test "$#" -ne 3
@@ -105,7 +107,7 @@ done
         with open(self.daemon_file, 'w') as fp:
             fp.write(daemon_code)
 
-        self.cfg_file = 'test.conf' + str(time.time())
+        self.cfg_file = 'test.conf'
         c = []
         c.append("""[output proc0]
 path = /bin/bash """ + self.daemon_file + """ 0 6 0.07""")
@@ -135,27 +137,35 @@ path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
             assert k.startswith('output proc')
             assert 'READY' in str(v)
 
-    def test_start_procs(self):
-        controller_thread = threading.Thread(target=self.controller)
-        controller_thread.start()
-        self.watcher = self.get_watcher()
+    def start_procs(self):
         self.watcher.start_all()
         async.loop()
-        controller_thread.join()
-        print self.data
 
-    def controller(self):
-        pass
-        for i in range(20):
-            time.sleep(1.5)
-            if i % 2 == 0:
-                self.watcher.stop('output proc1')
-            else:
-                self.watcher.start('output proc1')
-        self.watcher.stop('output proc1')
-        #for x in async.socket_map.values():
-        #    x.stop()
+    def test_start_procs(self):
+        self.watcher = self.get_watcher()
+        ct_thread = threading.Thread(target=self.stop_ct)
+        ct_thread.start()
+        self.start_procs()
+        ct_thread.join()
+
+    def stop_ct(self):
+        time.sleep(2)
+        for x in self.watcher.get_procs():
+            x.stop()
+
+    def test_restart_procs(self):
+        self.watcher = self.get_watcher()
+        ct_thread = threading.Thread(target=self.restart_ct)
+        ct_thread.start()
+        self.start_procs()
+        ct_thread.join()
+
+    def restart_ct(self):
+        time.sleep(2)
+        for x in self.watcher.get_procs():
+            x.restart()
+        self.stop_ct()
 
     def blast_module(self, message, index):
-        #print message
+        print message.message,
         self.data.append(message.message)

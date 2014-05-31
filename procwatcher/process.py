@@ -86,7 +86,14 @@ class Process(async.file_dispatcher):
             print 'not running'
             return False
         self.status = STATUS.STOPING
-        self.proc.terminate()
+        self.terminate()
+
+    def restart(self):
+        if self.status != STATUS.RUNNING:
+            print 'not running'
+            return False
+        self.status = STATUS.RSTTING
+        self.terminate()
 
     def cleanup(self):
         if self.status == STATUS.RUNNING:
