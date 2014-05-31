@@ -22,7 +22,7 @@ class Command(object):
             return -1
         try:
             sock.send('%s %s' % (cmd, procname,))
-            message = sock.recv(1024)
+            message = sock.recv(8192)
         except Exception as e:
             pass
         try:
@@ -98,3 +98,6 @@ def main():
     result = Command.command(argv)
     if argv[0] == 'status':
         print result
+
+if __name__ == '__main__':
+    main()

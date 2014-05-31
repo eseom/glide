@@ -89,8 +89,15 @@ class Watcher(object):
                 break
             else:
                 pids.append(pid)
+        for p in self.pid_map.values():
+            if p.pid not in pids:
+                if not p.proc.is_alive() and p.status == STATUS.RUNNING:
+                    pids.append(p.pid)
         for pid in pids:
-            proc = self.pid_map[pid].cleanup()
+            proc = self.pid_map.get(pid, None)
+            if not proc:
+                continue
+            proc = proc.cleanup()
             del self.pid_map[pid]
             if proc:
                 self.pid_map[proc.pid] = proc

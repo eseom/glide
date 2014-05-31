@@ -22,7 +22,7 @@ class CommandBaseHandler(async.dispatcher_with_send):
     def handle_read(self):
         data = self.recv(8192)
         if data:
-            self.send(self.handle_data(data))
+            self.sendall(self.handle_data(data))
 
     def handle_data(self, data):
         raise Exception('<handle_data> not implemented')

@@ -101,7 +101,6 @@ class Process(async.file_dispatcher):
         os.close(self.rpi)
         os.close(self.wpi)
         self.parent.close(self)
-        #self.del_channel()
         if (self.try_restart == -1 or \
             self.try_restart > self.restarted) and \
             self.status == STATUS.RSTTING:
