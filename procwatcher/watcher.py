@@ -76,6 +76,16 @@ class Watcher(object):
         proc.restart()
         return RESULT.SUCCESS
 
+    def hangup(self, procname):
+        proc = self.nam_map[procname]
+        proc.hangup()
+        return RESULT.SUCCESS
+
+    def alarm(self, procname):
+        proc = self.nam_map[procname]
+        proc.alarm()
+        return RESULT.SUCCESS
+
     def status(self, procname):
         if procname == '*':
             pa = []

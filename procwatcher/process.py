@@ -24,7 +24,6 @@ class STATUS(object):
     RSTTING = 'RESTARTING'
     STOPING = 'STOPPING'
     KILLING = 'KILLING'
-    HANGING = 'HANGINGUP'
     STOPPED = 'STOPPED'
 
 class Message(object):
@@ -94,6 +93,18 @@ class Process(async.file_dispatcher):
             return False
         self.status = STATUS.RSTTING
         self.terminate()
+
+    def hangup(self):
+        if self.status != STATUS.RUNNING:
+            print 'not running'
+            return False
+        os.kill(self.proc.pid, 1)
+
+    def alarm(self):
+        if self.status != STATUS.RUNNING:
+            print 'not running'
+            return False
+        os.kill(self.proc.pid, 14)
 
     def cleanup(self):
         if self.status == STATUS.RUNNING:
