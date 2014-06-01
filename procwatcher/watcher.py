@@ -28,7 +28,7 @@ class Watcher(object):
         self.pid_map = {} # key: proc pid,  value: proc
         signal.signal(signal.SIGCHLD, self.proc_exit)
         # set pgid of the main process
-        #os.setpgid(os.getpid(), os.getpid())
+        os.setpgid(os.getpid(), os.getpid())
 
     def match_procs(self, cfg_file=None):
         if not cfg_file:
@@ -55,14 +55,14 @@ class Watcher(object):
 
     def stop_all(self):
         for proc in self.nam_map.values():
-            proc.status = STATUS.STOPING
+            proc.status = STATUS.KILLING
         os.killpg(os.getpgrp(), 15)
 
     def start(self, procname):
         proc = self.nam_map[procname]
         proc.start()
         # set process group id of the child
-        #os.setpgid(os.proc.pid, os.getpid())
+        os.setpgid(proc.pid, os.getpid())
         self.pid_map[proc.pid] = proc
         return RESULT.SUCCESS
 
@@ -100,8 +100,9 @@ class Watcher(object):
                 pids.append(pid)
         for p in self.pid_map.values():
             if p.pid not in pids:
-                if not p.proc.is_alive() and p.status == STATUS.RUNNING:
-                    pids.append(p.pid)
+                if not p.proc.is_alive():
+                    if p.status in (STATUS.RUNNING, STATUS.KILLING):
+                        pids.append(p.pid)
         for pid in pids:
             proc = self.pid_map.get(pid, None)
             if not proc:
