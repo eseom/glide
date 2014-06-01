@@ -9,7 +9,7 @@ import optparse
 
 class RESULT(object):
     SUCCESS = '1'
-    FAIL    = '0'
+    FAILURE = '0'
 
 class Command(object):
     def __init__(self, host):

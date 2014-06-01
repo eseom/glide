@@ -59,7 +59,9 @@ class Watcher(object):
         os.killpg(os.getpgrp(), 15)
 
     def start(self, procname):
-        proc = self.nam_map[procname]
+        proc = self.nam_map.get(procname, None)
+        if not proc:
+            return RESULT.FAILURE
         proc.start()
         # set process group id of the child
         os.setpgid(proc.pid, os.getpid())
@@ -67,22 +69,30 @@ class Watcher(object):
         return RESULT.SUCCESS
 
     def stop(self, procname):
-        proc = self.nam_map[procname]
+        proc = self.nam_map.get(procname, None)
+        if not proc:
+            return RESULT.FAILURE
         proc.stop()
         return RESULT.SUCCESS
 
     def restart(self, procname):
-        proc = self.nam_map[procname]
+        proc = self.nam_map.get(procname, None)
+        if not proc:
+            return RESULT.FAILURE
         proc.restart()
         return RESULT.SUCCESS
 
     def hangup(self, procname):
-        proc = self.nam_map[procname]
+        proc = self.nam_map.get(procname, None)
+        if not proc:
+            return RESULT.FAILURE
         proc.hangup()
         return RESULT.SUCCESS
 
     def alarm(self, procname):
-        proc = self.nam_map[procname]
+        proc = self.nam_map.get(procname, None)
+        if not proc:
+            return RESULT.FAILURE
         proc.alarm()
         return RESULT.SUCCESS
 
