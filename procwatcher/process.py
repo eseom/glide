@@ -62,7 +62,6 @@ class Process(async.file_dispatcher):
         self.proc.start()
         self.pid = self.proc.pid
         self.parent.__init__(self, self.rpi)
-        #self.add_channel(self.rpi)
         self.status = STATUS.RUNNING
         self.start_time = datetime.datetime.now()
 
@@ -137,7 +136,7 @@ class Process(async.file_dispatcher):
 class Tester(unittest.TestCase):
     """ prepare test """
     def setUp(self):
-        self.test_file = 'echo.sh' + str(time.time())
+        self.test_file = 'output.sh'
         self.terminate_sign_num = 7
         test_code = """#!/bin/bash
 trap 'for i in `seq 1 """ + str(self.terminate_sign_num) + \
@@ -171,11 +170,10 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
                 break
             else:
                 pids.append(pid)
-        #for p in self.pid_map.values():
-        #    if p.pid not in pids:
-        #        print p.proc.is_alive()
-        #        if not p.proc.is_alive():
-        #            pids.append(p.pid)
+        for p in self.pid_map.values():
+            if p.pid not in pids:
+                if not p.proc.is_alive() and p.status == STATUS.RUNNING:
+                    pids.append(p.pid)
         for pid in pids:
             proc = self.pid_map[pid].cleanup()
             del self.pid_map[pid]
@@ -191,7 +189,7 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
         self.data[procnum].append(data)
         if index == 23 and message.message[0] == '1':
             self.nam_map['test_daemon1'].stop()
-        if index == 30 and message.message[0] == '1':
+        if index == 32 and message.message[0] == '1':
             self.nam_map['test_daemon1'].start()
         if index == 44 and message.message[0] == '2':
             self.nam_map['test_daemon2'].stop()

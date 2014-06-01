@@ -28,7 +28,7 @@ class Watcher(object):
         self.pid_map = {} # key: proc pid,  value: proc
         signal.signal(signal.SIGCHLD, self.proc_exit)
         # set pgid of the main process
-        os.setpgid(os.getpid(), os.getpid())
+        #os.setpgid(os.getpid(), os.getpid())
 
     def match_procs(self, cfg_file=None):
         if not cfg_file:
@@ -56,14 +56,13 @@ class Watcher(object):
     def stop_all(self):
         for proc in self.nam_map.values():
             proc.status = STATUS.STOPING
-        print os.getpid(), os.getpgrp()
         os.killpg(os.getpgrp(), 15)
 
     def start(self, procname):
         proc = self.nam_map[procname]
         proc.start()
         # set process group id of the child
-        os.setpgid(os.proc.pid, os.getpid())
+        #os.setpgid(os.proc.pid, os.getpid())
         self.pid_map[proc.pid] = proc
         return RESULT.SUCCESS
 
@@ -139,11 +138,11 @@ done
         self.cfg_file = 'test.conf'
         c = []
         c.append("""[output proc0]
-path = /bin/bash """ + self.daemon_file + """ 0 6 0.07""")
+path = /bin/bash """ + self.daemon_file + """ 0 60 1""")
         c.append("""[output proc1]
-path = /bin/bash """ + self.daemon_file + """ 1 13 0.2""")
+path = /bin/bash """ + self.daemon_file + """ 1 130 1""")
         c.append("""[output proc2]
-path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
+path = /bin/bash """ + self.daemon_file + """ 2 50 1""")
         with open(self.cfg_file, 'w') as fp:
             fp.write('\n'.join(c))
 
@@ -170,7 +169,7 @@ path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
         self.watcher.start_all()
         async.loop()
 
-    def test_start_procs(self):
+    def ttest_start_procs(self):
         self.watcher = self.get_watcher()
         ct_thread = threading.Thread(target=self.stop_ct)
         ct_thread.start()
@@ -191,10 +190,15 @@ path = /bin/bash """ + self.daemon_file + """ 2 5 0.3""")
 
     def restart_ct(self):
         time.sleep(2)
-        for x in self.watcher.get_procs():
-            x.restart()
+        proc = self.watcher.get_procs()[0]
+        self.watcher.stop(proc.name)
+        time.sleep(6)
+        self.watcher.start(proc.name)
+        time.sleep(3)
+        self.watcher.restart(proc.name)
+        time.sleep(2) # signal break sleep
+        time.sleep(5)
         self.stop_ct()
 
     def blast_module(self, message, index):
-        print message.message,
         self.data.append(message.message)
