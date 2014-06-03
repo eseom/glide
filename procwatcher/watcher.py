@@ -111,6 +111,10 @@ class Watcher(object):
             pid = 0
             try:
                 pid, exitcode = os.waitpid(-1, os.WNOHANG | os.WUNTRACED)
+                if exitcode != 0: # path not exitts
+                    p = self.pid_map[pid]
+                    p.status = STATUS.EXITED
+                    p.cleanup()
             except Exception as e:
                 #print 'error:::', e
                 pass

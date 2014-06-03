@@ -25,6 +25,7 @@ class STATUS(object):
     STOPING = 'STOPPING'
     KILLING = 'KILLING'
     STOPPED = 'STOPPED'
+    EXITED  = 'EXITED'
 
 class Message(object):
     def __init__(self, proc, message):
@@ -51,7 +52,7 @@ class Process(async.file_dispatcher):
         self.bm          = bm
 
     def start(self):
-        if self.status not in (STATUS.STOPPED, STATUS.READY):
+        if self.status not in (STATUS.STOPPED, STATUS.READY, STATUS.EXITED):
             print 'not stopped'
             return False
         self.rpi, self.wpi = os.pipe()
@@ -109,9 +110,14 @@ class Process(async.file_dispatcher):
     def cleanup(self):
         if self.status == STATUS.RUNNING:
             self.status = STATUS.RSTTING
-        os.close(self.rpi)
-        os.close(self.wpi)
-        self.parent.close(self)
+        try:    os.close(self.rpi)
+        except: pass
+        try:    os.close(self.wpi)
+        except: pass
+        try:    self.parent.close(self)
+        except: pass
+        if self.status == STATUS.EXITED: # TODO need throttle
+            return None
         if (self.try_restart == -1 or \
             self.try_restart > self.restarted) and \
             self.status == STATUS.RSTTING:
@@ -124,10 +130,17 @@ class Process(async.file_dispatcher):
             self.status = STATUS.STOPPED
             return None
 
+    def handle_error(self):
+        nil, t, v, tbinfo = async.compact_traceback()
+        print '-' * 10
+        print t
+        print v
+        print tbinfo
+
     def __str__(self):
         uptime, pid = \
             0, None
-        if self.status not in (STATUS.STOPPED, STATUS.READY):
+        if self.status not in (STATUS.STOPPED, STATUS.READY, STATUS.EXITED):
             _uptime = (datetime.datetime.now() - self.start_time)
             uptime  = int(_uptime.total_seconds())
             pid = self.pid
@@ -175,6 +188,10 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
             pid = 0
             try:
                 pid, exitcode = os.waitpid(-1, os.WNOHANG | os.WUNTRACED)
+                if exitcode != 0:
+                    p = self.pid_map[pid]
+                    p.status = STATUS.EXITED
+                    p.cleanup()
             except Exception as e:
                 #print 'error:::', e
                 pass
@@ -197,8 +214,11 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
             x.stop()
 
     def blast(self, message, index):
-        procnum, data =  message.message.split('-')
-        self.data[procnum].append(data)
+        try:
+            procnum, data =  message.message.split('-')
+            self.data[procnum].append(data)
+        except:
+            pass
         if index == 23 and message.message[0] == '1':
             self.nam_map['test_daemon1'].stop()
         if index == 32 and message.message[0] == '1':
@@ -215,7 +235,7 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
             for i in self.data.keys():
                 proc = Process(
                     name='test_daemon' + i,
-                    path=[self.test_file, i, sleep],
+                    path=[self.test_file + '1', i, sleep],
                     max_nl=11,
                     bm=self.blast,
                     try_restart=6
