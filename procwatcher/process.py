@@ -201,10 +201,14 @@ for i in `seq 1 20`; do echo -n $1-$i; sleep $2; done
                 pids.append(pid)
         for p in self.pid_map.values():
             if p.pid not in pids:
-                if not p.proc.is_alive() and p.status == STATUS.RUNNING:
-                    pids.append(p.pid)
+                if not p.proc.is_alive():
+                    if p.status in (STATUS.RUNNING, STATUS.KILLING):
+                        pids.append(p.pid)
         for pid in pids:
-            proc = self.pid_map[pid].cleanup()
+            proc = self.pid_map.get(pid, None)
+            if not proc:
+                continue
+            proc = proc.cleanup()
             del self.pid_map[pid]
             if proc:
                 self.pid_map[proc.pid] = proc
