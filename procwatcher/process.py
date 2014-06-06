@@ -79,7 +79,10 @@ class Process(async.file_dispatcher):
         self.bi += 1
 
     def terminate(self):
-        self.proc.terminate()
+        try:
+            self.proc.terminate()
+        except OSError: # no process id
+            pass
 
     def stop(self):
         if self.status != STATUS.RUNNING:
