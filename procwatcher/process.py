@@ -69,7 +69,7 @@ class Process(async.file_dispatcher):
     def __execute(self, path, rpi, wpi):
         pid = os.getpid()
         # set the child process as a process group master itself
-        os.setpgid(pid, pid 
+        os.setpgid(pid, pid)
         os.dup2(wpi, 1)
         os.dup2(wpi, 2)
         os.close(wpi)
