@@ -77,8 +77,9 @@ class Process(async.file_dispatcher):
         os.execv(path[0], path)
 
     def handle_read(self):
-        data = self.recv(4096)
-        self.bm(Message(self, data), self.bi)
+        data = self.recv(4096).strip()
+        for d in data.split('\n'):
+            self.bm(Message(self, d), self.bi)
         self.bi += 1
 
     def terminate(self):
