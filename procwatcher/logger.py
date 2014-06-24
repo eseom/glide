@@ -14,7 +14,8 @@ class Log(object):
 
     def get_logger(self):
         try:
-            my_logger = logging.getLogger('MyLogger')
+            my_logger = logging.getLogger('syslog')
+            logging.raiseExceptions = 0
             my_logger.setLevel(logging.DEBUG)
             handler = logging.handlers.SysLogHandler(address = '/dev/log',
                 facility=logging.handlers.SysLogHandler.LOG_DAEMON)
@@ -26,5 +27,5 @@ class Log(object):
     def info(self, message, index):
         if not self.logger:
             self.get_logger()
-        self.logger.info('%s: %s',
-            message.proc.name, message.message)
+        if self.logger:
+            self.logger.info('%s: %s', message.proc.name, message.message)
