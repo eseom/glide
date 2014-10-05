@@ -8,7 +8,7 @@ class BreakHandler(object):
         for i in [x for x in dir(signal) if x.startswith("SIG")]:
             try:
                 signum = getattr(signal, i)
-                if signum not in (17, 28):
+                if signum not in (13, 17, 28):
                     signal.signal(signum, callback)
             except RuntimeError as e:
                 pass
