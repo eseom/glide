@@ -28,7 +28,10 @@ class Log(object):
             self.handler.handleError = self.handle_error
             self.logger.addHandler(self.handler)
         except socket_error as e:
-            self.logger.removeHandler(self.handler)
+            try:
+                self.logger.removeHandler(self.handler)
+            except:
+                pass
             self.logger = None
 
     def info(self, message, index):
