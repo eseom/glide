@@ -28,9 +28,9 @@ daemonize $INSTALL_PATH/glided
 ### command
 
 ```bash
-$INSTALL_PATH/pwctl status
-$INSTALL_PATH/pwctl start process_name1
-$INSTALL_PATH/pwctl stop process_name2 # send quit(3) signal
-$INSTALL_PATH/pwctl restart process_name1
-$INSTALL_PATH/pwctl alarm process_name2 # send alarm(14) signal
+$INSTALL_PATH/glidectl status
+$INSTALL_PATH/glidectl start process_name1
+$INSTALL_PATH/glidectl stop process_name2 # send quit(3) signal
+$INSTALL_PATH/glidectl restart process_name1
+$INSTALL_PATH/glidectl alarm process_name2 # send alarm(14) signal
 ```
