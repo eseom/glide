@@ -1,20 +1,9 @@
-#!/usr/bin/env python
-#
-# http://github.com/eseom/procwatcher
-#
-# @author:  EunseokEom <me@eseom.org>
-# @desc:    controller
+import asyncore
+from glide import logger
+from glide.server import CommandServer
+from glide.breakhandler import BreakHandler
+from glide.watcher import Watcher
 
-import asyncore as async
-
-from watcher import Watcher
-import logger
-import server
-from BreakHandler import BreakHandler
-
-class CommandHandler(server.CommandBaseHandler):
-    def handle_data(self, data):
-        return self.controller.command(data)
 
 class Controller(object):
     def __init__(self):
@@ -24,10 +13,12 @@ class Controller(object):
         self.watcher = Watcher(self.logger.info)
         self.watcher.match_procs()
         self.watcher.start_all()
-
         self.server = \
-            server.CommandServer('0.0.0.0', 32767, self, CommandHandler)
-        async.loop()
+            CommandServer('0.0.0.0', 32767, self)
+        try:
+            asyncore.loop()
+        except:
+            pass
 
     def stop(self):
         self.server.stop()
@@ -41,12 +32,17 @@ class Controller(object):
             command, procname = command.strip().split(' ', 1)
             method = getattr(self.watcher, command)
             if method:
-                return method(procname)
+                if command == 'status':
+                    return method(procname)
+                result, message = method(procname)
+                return '%s %s' % (int(result), message,)
         except:
             pass
 
+
 def main():
     controller = Controller()
+
     def exit_callback(signal, frame):
         controller.stop()
     bh = BreakHandler()

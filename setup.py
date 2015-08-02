@@ -1,18 +1,19 @@
-import os.path, sys
+import os.path
 
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
-from procwatcher.version import VERSION
-import multiprocessing # http://bugs.python.org/issue15881#msg170215
+from glide.version import VERSION
+import multiprocessing  # NOQA http://bugs.python.org/issue15881#msg170215
+
 
 def readme():
     with open(os.path.join(os.path.dirname(__file__), 'README.md')) as fp:
         return fp.read()
 
-setup(name='procwatcher',
-      packages=['procwatcher'],
+setup(name='glide',
+      packages=['glide'],
       version=VERSION,
       description='simple process management tool',
       long_description=readme(),
@@ -34,8 +35,8 @@ setup(name='procwatcher',
       ],
       entry_points={
           'console_scripts': [
-              'procwatcherd = procwatcher.controller:main',
-              'pwctl = procwatcher.command:main',
+              'glided = glide.controller:main',
+              'glidectl = glide.command:main',
           ],
       },
 )

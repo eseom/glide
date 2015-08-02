@@ -1,4 +1,6 @@
-import sys, time, signal, os
+import signal
+import os
+
 
 class BreakHandler(object):
     def __init__(self):
@@ -10,9 +12,9 @@ class BreakHandler(object):
                 signum = getattr(signal, i)
                 if signum not in (13, 17, 28):
                     signal.signal(signum, callback)
-            except RuntimeError as e:
+            except RuntimeError:
                 pass
-            except ValueError as e:
+            except ValueError:
                 pass
 
     def register_exit_callback(self, _callback, onlyonce=False, cascade=False):
